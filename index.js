@@ -6753,6 +6753,69 @@ function getCurrentTime(config) {
   };
 }
 
+// ==================== Clash 订阅输出 ====================
+// 供 OpenClash（Meta 内核）拉取自建节点配置
+function handleClashSub(request, env) {
+  // 简单的 token 验证（防止订阅被扫描盗用）
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token');
+  const expectedToken = env.CLASH_SUB_TOKEN || 'dmit-cn2-2024';
+
+  if (token !== expectedToken) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // 自建节点配置 - VLESS + TCP + Reality + Vision (DMIT 洛杉矶 CN2)
+  const clashConfig = `# OpenClash 自建节点订阅
+# 更新时间: ${new Date().toISOString()}
+# 使用方法: OpenClash → 配置订阅 → 添加 → 粘贴此 URL
+# User-Agent 选择 clash.meta，不勾选在线订阅转换
+
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: rule
+log-level: info
+
+proxies:
+  - name: "洛杉矶-DMIT-CN2"
+    type: vless
+    server: 69.63.210.175
+    port: 443
+    uuid: 890e1e46-877e-4c35-ac68-5091b8dd5148
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: swdist.apple.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: EoaRASkxTEHTZcMyk8CNFbPq-Y7_gVVyD-_615J8yU4
+      short-id: 4ed84225e10c95a8
+
+proxy-groups:
+  - name: "🚀 自建节点"
+    type: select
+    proxies:
+      - "洛杉矶-DMIT-CN2"
+      - DIRECT
+
+rules:
+  - MATCH,🚀 自建节点
+`;
+
+  return new Response(clashConfig, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/yaml; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="clash-sub.yaml"',
+      'Cache-Control': 'no-cache',
+      'Subscription-Userinfo': 'upload=0; download=0; total=107374182400; expire=0',
+      'Profile-Update-Interval': '24',
+    }
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -6815,6 +6878,11 @@ export default {
           headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         });
       }
+    }
+
+    // Clash 订阅接口 - 供 OpenClash 等客户端拉取自建节点配置
+    if (url.pathname === '/clash-sub') {
+      return handleClashSub(request, env);
     }
 
     if (url.pathname.startsWith('/api')) {
